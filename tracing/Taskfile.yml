@@ -1,0 +1,121 @@
+version: '2'
+
+#  The carrier file (.carrier) is used to propagate trace context between spans.
+#  It contains trace and span IDs of the current span.
+#  Each span-start creates a new span and updates the carrier file.
+#  Each span-end reads the carrier file to get the current span info, ends that span
+#  and restores the carrier file to the previous span's info.
+
+#  The carrierstack (.carrier-stack) is a stack, with the most recent span on top.
+
+#  The sockstack (.otel-sockdir-stack) is used to manage multiple concurrent
+#  spans. Each span-start creates a new sockdir and pushes it onto the stack.
+
+#  Each span-end pops the top sockdir off the stack and removes it.
+#  If the stack is empty, the sockdir and carrier files are removed.
+
+tasks:
+  reset:
+    cmds:
+      - echo [INFO] resetting tracing state
+      - rm -f .otel-sockdir-stack
+      - rm -f .carrier*
+
+  span-start:
+    deps:
+      - task: check-variable-defined
+        vars:
+          VAR_NAME: NAME
+          VAR_VALUE: '{{.NAME}}'
+    cmds:
+      - echo [INFO] entering span-start for {{.NAME}}
+      - |
+          sockstack=".otel-sockdir-stack"
+          carrierstack=".carrier-stack"
+          carrier=".carrier"
+          touch $carrier
+          sockdir=$(mktemp -d) # a new unix socket will be created here
+          sid="$(tr -dc 'a-f0-9' < /dev/urandom | head -c 16)"
+          otel-cli span background \
+              --verbose --fail \
+              --sockdir $sockdir \
+              --name "{{.NAME}}" \
+              --service banzai \
+              --tp-carrier $carrier \
+              --force-span-id $sid \
+              --timeout 3600 &
+          # Save the sockdir in a LIFO stack for later commands to use
+          echo "$sockdir" >> $sockstack
+          cp $carrier "$carrier-$sid"
+          echo "$carrier-$sid" >> $carrierstack
+      - task: :trace:event
+        vars:
+          NAME: sync
+
+  exec:
+    deps:
+      - task: check-variable-defined
+        vars:
+          VAR_NAME: CMD
+          VAR_VALUE: '{{.CMD}}'
+    cmds:
+      - echo [INFO] entering exec for {{.CMD}}
+      - |
+          carrier=".carrier"
+          cp $carrier .carrier-temp  # backup the carrier, else later spans will have this as the parent
+          otel-cli exec \
+            --verbose --fail \
+            --name "{{.CMD}}" \
+            --service banzai \
+            --tp-carrier "$carrier" \
+            {{.CMD}}
+          mv .carrier-temp $carrier # restore the carrier
+
+  event:
+    deps:
+      - task: check-variable-defined
+        vars:
+          VAR_NAME: NAME
+          VAR_VALUE: '{{.NAME}}'
+    cmds:
+      - echo [INFO] entering event
+      - |
+          sockstack=".otel-sockdir-stack"
+          sockdir=$(tail -n 1 $sockstack)
+          otel-cli span event \
+          --name "{{.NAME}}" \
+          --sockdir $sockdir {{- if .ATTRS }} \
+          --attrs "{{.ATTRS}}" {{ end }}
+
+  span-end:
+    cmds:
+      - echo [INFO] entering span-end
+      - |
+          sockstack=".otel-sockdir-stack"
+          sockdir=$(tail -n 1 $sockstack)
+          otel-cli span end \
+          --sockdir $sockdir \
+          --status-code "{{default "success" .STATUS_CODE}}"
+
+          # restore the carrier from the last span
+          carrierstack=".carrier-stack"
+          carrier=$(tail -n 1 $carrierstack)
+          mv $carrier .carrier
+          sed -i '$d' $carrierstack
+
+          # Remove the used sockdir from the stack
+          sed -i '$d' $sockstack
+          rm -rf "$sockdir"
+          # If the stack is now empty, remove sock and carrier files
+          if [ ! -s "$sockstack" ]; then rm -f "$carrierstack"; rm -f "$sockstack"; rm -f .carrier; fi
+
+  check-variable-defined:
+    cmds:
+      - echo [INFO] Checking {{.VAR_NAME}} is set/defined
+      - |
+        {{- if eq "" (default "" .VAR_VALUE) -}}
+          echo [ERROR] {{if eq "" (default "" .ERROR)}}{{.VAR_NAME}} not defined. Update the {{.VAR_NAME}} variable{{else}}{{.ERROR}}{{end}}
+          exit 1
+        {{- else -}}
+          true
+        {{- end -}}

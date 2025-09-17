@@ -1,0 +1,78 @@
+version: "2"
+
+includes:
+  trace: ./tracing/Taskfile.yml
+
+env:
+  OTEL_SERVICE_NAME: "Banzai"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "grpc://localhost:4317"
+
+tasks:
+  default:
+    cmds:
+      - echo [INFO] entering default
+      - task: trace:reset
+      - task: trace:span-start
+        vars:
+          NAME: default
+      - task: trace:event
+        vars:
+          NAME: default-event
+          ATTRS: "provisioner=openstack,installer=operator"
+      - task: task1  # task1-task2-task3
+      - task: task2  # task2-task3
+      - task: trace:exec
+        vars:
+          CMD: sleep 0.2
+      # - task: taskexec
+      - task: task3  # task3
+      - task: trace:span-end
+
+  task1:
+    cmds:
+      - echo [INFO] entering task1
+      - task: trace:span-start
+        vars:
+          NAME: task1
+      - task: trace:event
+        vars:
+          NAME: task1-event
+          ATTRS: "key1=val1,key2=val2"
+      - task: task2
+      - task: trace:span-end
+
+  task2:
+    cmds:
+      - echo [INFO] entering task2
+      - task: trace:span-start
+        vars:
+          NAME: task2
+      - task: task3
+      - task: trace:span-end
+
+  task3:
+    cmds:
+      - echo [INFO] entering task3
+      - task: trace:span-start
+        vars:
+          NAME: task3
+      - sleep 1
+      - task: trace:span-end
+        # vars:
+        #   STATUS_CODE: error
+
+  taskexec:
+    cmds:
+      - echo [INFO] entering taskexec
+      - task: trace:exec
+        vars:
+          CMD: false
+
+  failing-task:
+    cmds:
+      - echo [INFO] entering failing-task
+      - task: trace:span-start
+        vars:
+          NAME: failing-task
+      - false  # simulate failure
+      - task: trace:span-end

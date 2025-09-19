@@ -1,7 +1,9 @@
 services:
   jaeger:
+    # jaeger is a combination of OTLP collector and UI
     image: jaegertracing/all-in-one:latest
     environment:
+      # Store spans in Elasticsearch
       - SPAN_STORAGE_TYPE=elasticsearch
       - ES_SERVER_URLS=http://elasticsearch:9200
     ports:
@@ -13,15 +15,7 @@ services:
     depends_on:
       elasticsearch:
         condition: service_healthy
-  kibana:
-    image: docker.elastic.co/kibana/kibana:7.17.18
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-    ports:
-      - "5601:5601" # Kibana UI
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.18
     environment:
@@ -38,5 +32,14 @@ services:
       timeout: 5s
       retries: 10
 
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.18
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601" # Kibana UI
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
 volumes:
   esdata:

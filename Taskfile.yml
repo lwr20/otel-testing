@@ -12,7 +12,7 @@ tasks:
     cmds:
       - echo [INFO] entering default
       - task: trace:reset
-      - task: trace:span-start
+      - task: trace:span-start  # Every task gets a span start at the start
         vars:
           NAME: default
       - task: trace:event
@@ -26,7 +26,7 @@ tasks:
           CMD: sleep 0.2
       # - task: taskexec
       - task: task3  # task3
-      - task: trace:span-end
+      - task: trace:span-end  # Every task gets a span end at the end
 
   task1:
     cmds:

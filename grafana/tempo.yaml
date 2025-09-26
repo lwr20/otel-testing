@@ -1,0 +1,17 @@
+auth_enabled: false
+server:
+  http_listen_port: 3200
+  grpc_listen_port: 9095
+storage:
+  trace:
+    backend: local
+    local:
+      path: /tmp/tempo
+    wal:
+      path: /tmp/tempo/wal
+compactor:
+  compaction:
+    block_retention: 48h
+metrics_generator:
+  storage:
+    path: /tmp/tempo/generator

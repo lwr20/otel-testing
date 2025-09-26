@@ -24,7 +24,7 @@ tasks:
       - task: trace:exec
         vars:
           CMD: sleep 0.2
-      # - task: taskexec
+      - task: taskexec
       - task: task3  # task3
       - task: trace:span-end  # Every task gets a span end at the end
 

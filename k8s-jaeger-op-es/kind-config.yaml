@@ -1,0 +1,118 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: jaeger-otel-cluster
+
+# Networking configuration
+networking:
+  # Configure port mapping for services
+  apiServerAddress: "127.0.0.1"
+  apiServerPort: 6443
+  podSubnet: "10.244.0.0/16"
+  serviceSubnet: "10.96.0.0/12"
+
+# Node configuration for 3-node cluster
+nodes:
+  # Control plane node
+  - role: control-plane
+    image: kindest/node:v1.31.0
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "node-type=control-plane"
+    # Port mappings for accessing services from host
+    extraPortMappings:
+      # Jaeger UI
+      - containerPort: 30686
+        hostPort: 16686
+        protocol: TCP
+      # OTLP gRPC
+      - containerPort: 30317
+        hostPort: 4317
+        protocol: TCP
+      # OTLP HTTP
+      - containerPort: 30318
+        hostPort: 4318
+        protocol: TCP
+      # # OTEL Collector alternative endpoints
+      # - containerPort: 30320
+      #   hostPort: 4320
+      #   protocol: TCP
+      # - containerPort: 30321
+      #   hostPort: 4321
+      #   protocol: TCP
+      # Elasticsearch
+      - containerPort: 30200
+        hostPort: 9200
+        protocol: TCP
+      # Kibana
+      - containerPort: 30601
+        hostPort: 5601
+        protocol: TCP
+      # # OTEL Health check
+      # - containerPort: 30133
+      #   hostPort: 13133
+      #   protocol: TCP
+      # Prometheus metrics
+      - containerPort: 30889
+        hostPort: 8889
+        protocol: TCP
+
+  # Worker node 1
+  - role: worker
+    image: kindest/node:v1.31.0
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "node-type=worker,worker-id=1"
+    # Resource limits for worker nodes
+    extraMounts:
+      - hostPath: /tmp/kind-worker1-data
+        containerPath: /data
+
+  # Worker node 2
+  - role: worker
+    image: kindest/node:v1.31.0
+    kubeadmConfigPatches:
+      - |
+        kind: JoinConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "node-type=worker,worker-id=2"
+    # Resource limits for worker nodes
+    extraMounts:
+      - hostPath: /tmp/kind-worker2-data
+        containerPath: /data
+
+# Feature gates and runtime config
+kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    metadata:
+      name: config
+    etcd:
+      local:
+        dataDir: "/tmp/etcd"
+    networking:
+      podSubnet: "10.244.0.0/16"
+      serviceSubnet: "10.96.0.0/12"
+    apiServer:
+      extraArgs:
+        enable-admission-plugins: "NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,DefaultTolerationSeconds,MutatingAdmissionWebhook,ValidatingAdmissionWebhook,ResourceQuota"
+    controllerManager:
+      extraArgs:
+        bind-address: "0.0.0.0"
+    scheduler:
+      extraArgs:
+        bind-address: "0.0.0.0"
+
+# Container runtime configuration
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5000"]
+      endpoint = ["http://localhost:5000"]
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."registry.k8s.io"]
+      endpoint = ["https://registry.k8s.io"]

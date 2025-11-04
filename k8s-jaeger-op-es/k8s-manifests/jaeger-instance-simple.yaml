@@ -1,0 +1,48 @@
+---
+apiVersion: jaegertracing.io/v1
+kind: Jaeger
+metadata:
+  name: jaeger-otel
+  namespace: observability
+  labels:
+    app: jaeger-otel
+spec:
+  strategy: production
+
+  # Storage configuration - Elasticsearch
+  storage:
+    type: elasticsearch
+    options:
+      es:
+        server-urls: http://elasticsearch.elasticsearch.svc.cluster.local:9200
+        index-prefix: jaeger
+
+  # Collector configuration
+  collector:
+    replicas: 2
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+  # Query service configuration
+  query:
+    replicas: 1
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "500m"
+    options:
+      query.base-path: /jaeger
+
+  # UI configuration
+  ui:
+    options:
+      dependencies.menuEnabled: true
+      archiveEnabled: true

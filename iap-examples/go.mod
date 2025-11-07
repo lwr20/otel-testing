@@ -3,7 +3,7 @@ module otel-trace-example
 go 1.21
 
 require (
-	github.com/golang-jwt/jwt/v5 v5.2.0
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	go.opentelemetry.io/otel v1.21.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.21.0
 	go.opentelemetry.io/otel/sdk v1.21.0

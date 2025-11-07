@@ -1,4 +1,17 @@
 services:
+  # Service account authentication middleware for OTEL endpoints
+  auth-middleware:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4317:4319" # Service account protected OTLP gRPC
+      - "4318:4319" # Service account protected OTLP HTTP
+    depends_on:
+      - jaeger
+    networks:
+      - default
+
   jaeger:
     # jaeger is a combination of OTLP collector and UI
     image: jaegertracing/all-in-one:latest
@@ -9,9 +22,11 @@ services:
     ports:
       - "16686:16686" # Jaeger UI
       - "14268:14268" # Jaeger collector HTTP
-      - "4317:4317" # OTLP gRPC
-      - "4318:4318" # OTLP HTTP
+      # Note: OTLP ports 4317/4318 are now handled by auth-middleware
       - "6831:6831/udp" # Jaeger agent UDP
+    expose:
+      - "4317" # Internal OTLP gRPC (accessed via auth-middleware)
+      - "4318" # Internal OTLP HTTP (accessed via auth-middleware)
     depends_on:
       elasticsearch:
         condition: service_healthy

@@ -36,10 +36,6 @@ spec:
       port: 4318
       targetPort: 4318
       nodePort: 30318
-    - name: jaeger-grpc
-      port: 14250
-      targetPort: 14250
-      nodePort: 30250
   selector:
     app.kubernetes.io/name: jaeger-otel-collector
     app.kubernetes.io/component: collector

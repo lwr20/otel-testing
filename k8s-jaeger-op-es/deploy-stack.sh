@@ -9,7 +9,8 @@ echo "  1. Install cert-manager"
 echo "  2. Install Jaeger Operator"
 echo "  3. Deploy Elasticsearch"
 echo "  4. Deploy Jaeger Instance with OTLP Support"
-echo "  5. Verify deployment + Elasticsearch stack"
+echo "  5. Deploy Traces Dashboard"
+echo "  6. Verify deployment + Elasticsearch stack"
 
 set -e
 
@@ -70,7 +71,18 @@ kubectl wait --for=condition=complete job/elasticsearch-setup -n elasticsearch -
 echo "✅ Elasticsearch deployed and configured!"
 
 echo ""
-echo "🔍 Step 5: Verifying deployment..."
+echo "📊 Step 5: Deploying Traces Dashboard..."
+echo "========================================"
+
+kubectl apply -f k8s-manifests/dashboard.yaml
+
+echo "Waiting for dashboard to be ready..."
+kubectl wait --for=condition=ready pod -l app=traces-dashboard -n traces-dashboard --timeout=60s
+
+echo "✅ Traces Dashboard deployed successfully!"
+
+echo ""
+echo "🔍 Step 6: Verifying deployment..."
 echo "================================="
 
 echo ""
@@ -104,6 +116,7 @@ echo "🎯 Access Points:"
 echo "================="
 
 echo "  📊 Jaeger UI:           http://localhost:16686/jaeger"
+echo "  📈 Traces Dashboard:    http://localhost:30080"
 echo "  📡 OTLP (Jaeger):       localhost:4317 (gRPC), localhost:4318 (HTTP)"
 echo "  🗄️ Elasticsearch:       localhost:9200"
 

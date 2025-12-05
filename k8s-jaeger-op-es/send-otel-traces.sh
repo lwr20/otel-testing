@@ -11,6 +11,19 @@ SERVICE_NAME="bz-cli"
 HTTP_ENDPOINT="http://172.18.0.2:30318"
 HEADERS=""
 
+# Provisioner types sampled from real traces
+PROVISIONER_TYPES=(
+  aws-eks
+  aws-kops
+  aws-kubeadm
+  aws-openshift
+  gcp-gke
+  gcp-kubeadm
+  gcp-mke
+  gcp-rke2
+  azr-aks
+)
+
 usage() {
   cat <<USAGE
 Usage: $0 [options]
@@ -84,8 +97,11 @@ send_trace_json() {
   echo "Sending trace: cmd=$cmd duration_us=$((duration_ns / 1000)) error=$is_error"
 
   # Generate random cluster name and directory
-  local cluster_name="bz-calient-$(printf "%04d" $((RANDOM % 10000)))"
-  local work_dir="/home/semaphore/banzai-calient/$(hexdump -vn8 -e '8/1 "%02x"' /dev/urandom)"
+  local cluster_name
+  cluster_name="bz-calient-$(printf "%04d" $((RANDOM % 10000)))"
+  local work_dir
+  work_dir="/home/semaphore/banzai-calient/$(hexdump -vn8 -e '8/1 "%02x"' /dev/urandom)"
+  local provisioner_type="${PROVISIONER_TYPES[$((RANDOM % ${#PROVISIONER_TYPES[@]}))]}"
 
   # Create OTLP JSON payload using jq for proper JSON encoding and escaping
   local payload
@@ -103,6 +119,7 @@ send_trace_json() {
     --arg work_dir "$work_dir" \
     --arg status_code "$status_code" \
     --arg error_message "$error_message" \
+    --arg provisioner_type "$provisioner_type" \
     '{
       "resourceSpans": [
         {
@@ -136,6 +153,7 @@ send_trace_json() {
                     {"key": "command.working_directory", "value": {"stringValue": $work_dir}},
                     {"key": "internal.span.format", "value": {"stringValue": "otlp"}},
                     {"key": "otel.scope.name", "value": {"stringValue": "bz-cli"}},
+                    {"key": "provisioner.type", "value": {"stringValue": $provisioner_type}},
                     {"key": "span.kind", "value": {"stringValue": "internal"}}
                   ],
                   "status": (
@@ -166,7 +184,7 @@ send_trace_json() {
                     {"key": "command.working_directory", "value": {"stringValue": $work_dir}},
                     {"key": "internal.span.format", "value": {"stringValue": "otlp"}},
                     {"key": "otel.scope.name", "value": {"stringValue": "bz-cli"}},
-                    {"key": "provisioner.type", "value": {"stringValue": "gcp-mke"}},
+                    {"key": "provisioner.type", "value": {"stringValue": $provisioner_type}},
                     {"key": "span.kind", "value": {"stringValue": "internal"}}
                   ],
                   "status": (
@@ -198,6 +216,7 @@ declare -A COMMAND_DURATIONS=(
   ["install"]=500000000000   # 500 seconds in nanoseconds
   ["destroy"]=150000000000   # 150 seconds
   ["tests"]=130000000000     # 130 seconds
+  ["provision"]=800000000    # 800 milliseconds
   ["diags"]=30000000000      # 30 seconds
 )
 

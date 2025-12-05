@@ -40,21 +40,20 @@ else
 fi
 
 echo ""
-echo "🔧 Step 2: Installing Jaeger Operator..."
+echo "🔧 Step 2: Installing Jaeger..."
 echo "========================================"
 
 # Create observability namespace if it doesn't exist
 kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f -
 
-# Install Jaeger Operator
-echo "Installing Jaeger Operator..."
-# Operator manifest from https://github.com/jaegertracing/jaeger-operator/releases/download/v1.60.0/jaeger-operator.yaml
-kubectl apply -f k8s-manifests/jaeger-operator.yaml
+# Install Jaeger
+echo "Installing Jaeger using kubectl..."
+kubectl apply -f k8s-manifests/jaeger-v2-deployment.yaml
 
-echo "Waiting for Jaeger Operator to be ready..."
-kubectl wait --for=condition=available deployment/jaeger-operator -n observability --timeout=300s
+echo "Waiting for Jaeger to be ready..."
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=jaeger -n observability --timeout=60s
 
-echo "✅ Jaeger Operator installed successfully!"
+echo "✅ Jaeger installed successfully!"
 
 echo ""
 echo "🗄️  Step 3: Deploying Elasticsearch..."
@@ -69,30 +68,6 @@ echo "Waiting for Elasticsearch setup job to complete..."
 kubectl wait --for=condition=complete job/elasticsearch-setup -n elasticsearch --timeout=120s
 
 echo "✅ Elasticsearch deployed and configured!"
-
-echo ""
-echo "� Step 3: Deploying Jaeger Instance with OTLP Support..."
-echo "======================================="
-
-kubectl apply -f k8s-manifests/jaeger-instance-simple.yaml
-kubectl apply -f k8s-manifests/jaeger-nodeport-services.yaml
-
-echo "Waiting for Jaeger components to be ready..."
-# Wait for collector
-until kubectl get deployment/jaeger-otel-collector -n observability &>/dev/null; do
-    echo "⏳ Waiting for jaeger-otel-collector deployment to be created..."
-    sleep 5
-done
-kubectl wait --for=condition=available deployment/jaeger-otel-collector -n observability --timeout=300s
-
-# Wait for query
-until kubectl get deployment/jaeger-otel-query -n observability &>/dev/null; do
-    echo "⏳ Waiting for jaeger-otel-query deployment to be created..."
-    sleep 5
-done
-kubectl wait --for=condition=available deployment/jaeger-otel-query -n observability --timeout=300s
-
-echo "✅ Jaeger instance deployed successfully!"
 
 echo ""
 echo "🔍 Step 5: Verifying deployment..."
@@ -116,22 +91,13 @@ kubectl get pods -n elasticsearch -o wide
 
 echo ""
 echo "Jaeger:"
-kubectl get pods -l app=jaeger -o wide
-
-echo ""
-echo "Jaeger OTLP Collectors:"
-kubectl get pods -n observability -l app.kubernetes.io/component=collector -o wide
+kubectl get pods -l app=jaeger-v2 -o wide
 
 echo ""
 echo "🌐 Services:"
 echo "------------"
 echo "External access (NodePort services):"
 kubectl get svc -o wide | grep NodePort
-
-echo ""
-echo "🔍 Jaeger Resources:"
-echo "-------------------"
-kubectl get jaeger -o wide
 
 echo ""
 echo "🎯 Access Points:"
